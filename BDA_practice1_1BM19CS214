@@ -1,0 +1,163 @@
+cqlsh> CREATE KEYSPACE Students1 WITH REPLICATION = { 'class':'SimpleStrategy','replication_factor':1};
+
+cqlsh> describe keyspaces;
+
+stud1          newstudents  students1           system_traces
+harshita       library      student             lib1         
+system_schema  system       system_distributed  bigcassandra 
+system_auth    employ       employee            drivers      
+
+cqlsh> use Students1;
+cqlsh:students1> create table Student_info (
+             ... RollNo int PRIMARY KEY,
+             ... StudName text,
+             ... DateofJoining timestamp,
+             ... LastExamPercent double
+             ... );
+cqlsh:students1> describe tables;
+
+student_info
+
+cqlsh:students1> describe table student_info;
+
+CREATE TABLE students1.student_info (
+    rollno int PRIMARY KEY,
+    dateofjoining timestamp,
+    lastexampercent double,
+    studname text
+) WITH bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+cqlsh:students1> begin batch
+             ... insert into student_info(RollNo,StudName,DateofJoining,LastExamPercent) values (1,'Michael','2012-03-29',69.9)
+             ... insert into student_info(RollNo,StudName,DateofJoining,LastExamPercent) values (2,'rahul','2013-02-27',72.5)
+             ... insert into student_info(RollNo,StudName,DateofJoining,LastExamPercent) values (3,'stephan','2014-04-12',81.7)
+             ... insert into student_info(RollNo,StudName,DateofJoining,LastExamPercent) values (4,'Ian string','2012-05-11',73.4)
+             ... apply batch;
+cqlsh:students1> select *
+             ... from student_info;
+
+ rollno | dateofjoining                   | lastexampercent | studname
+--------+---------------------------------+-----------------+------------
+      1 | 2012-03-28 18:30:00.000000+0000 |            69.9 |    Michael
+      2 | 2013-02-26 18:30:00.000000+0000 |            72.5 |      rahul
+      4 | 2012-05-10 18:30:00.000000+0000 |            73.4 | Ian string
+      3 | 2014-04-11 18:30:00.000000+0000 |            81.7 |    stephan
+
+(4 rows)
+cqlsh:students1> select * from student_info where RollNo IN(1,2,3);
+
+ rollno | dateofjoining                   | lastexampercent | studname
+--------+---------------------------------+-----------------+----------
+      1 | 2012-03-28 18:30:00.000000+0000 |            69.9 |  Michael
+      2 | 2013-02-26 18:30:00.000000+0000 |            72.5 |    rahul
+      3 | 2014-04-11 18:30:00.000000+0000 |            81.7 |  stephan
+
+(3 rows)
+cqlsh:students1> create index on student_info(studname);
+cqlsh:students1> select * from student_info where studname='stephan';
+
+ rollno | dateofjoining                   | lastexampercent | studname
+--------+---------------------------------+-----------------+----------
+      3 | 2014-04-11 18:30:00.000000+0000 |            81.7 |  stephan
+
+(1 rows)
+cqlsh:students1> create index on student_info(LastExamPercent);
+cqlsh:students1> select * from student_info where LastExamPercent=81.7;
+
+ rollno | dateofjoining                   | lastexampercent | studname
+--------+---------------------------------+-----------------+----------
+      3 | 2014-04-11 18:30:00.000000+0000 |            81.7 |  stephan
+
+(1 rows)
+cqlsh:students1> alter table student_info add hobbies set<text>;
+cqlsh:students1> update student_info set hobbies=hobbies + {'chess','swimming'} where rollno=1;
+cqlsh:students1> select * from student_info;
+
+ rollno | dateofjoining                   | hobbies               | lastexampercent | studname
+--------+---------------------------------+-----------------------+-----------------+------------
+      1 | 2012-03-28 18:30:00.000000+0000 | {'chess', 'swimming'} |            69.9 |    Michael
+      2 | 2013-02-26 18:30:00.000000+0000 |                  null |            72.5 |      rahul
+      4 | 2012-05-10 18:30:00.000000+0000 |                  null |            73.4 | Ian string
+      3 | 2014-04-11 18:30:00.000000+0000 |                  null |            81.7 |    stephan
+
+(4 rows)
+cqlsh:students1> update student_info set hobbies=hobbies + {'chess','drawing'} where rollno=2;
+cqlsh:students1> select * from student_info;
+
+ rollno | dateofjoining                   | hobbies               | lastexampercent | studname
+--------+---------------------------------+-----------------------+-----------------+------------
+      1 | 2012-03-28 18:30:00.000000+0000 | {'chess', 'swimming'} |            69.9 |    Michael
+      2 | 2013-02-26 18:30:00.000000+0000 |  {'chess', 'drawing'} |            72.5 |      rahul
+      4 | 2012-05-10 18:30:00.000000+0000 |                  null |            73.4 | Ian string
+      3 | 2014-04-11 18:30:00.000000+0000 |                  null |            81.7 |    stephan
+
+(4 rows)
+cqlsh:students1> alter table student_info add language list<text>;
+cqlsh:students1> update student_info set language=language + {'hindi','english'} where rollno=3;
+InvalidRequest: Error from server: code=2200 [Invalid query] message="Invalid set literal for language of type list<text>"
+cqlsh:students1> update student_info set language=language + ['hindi','english'] where rollno=3;
+cqlsh:students1> select * from student_info;
+
+ rollno | dateofjoining                   | hobbies               | language             | lastexampercent | studname
+--------+---------------------------------+-----------------------+----------------------+-----------------+------------
+      1 | 2012-03-28 18:30:00.000000+0000 | {'chess', 'swimming'} |                 null |            69.9 |    Michael
+      2 | 2013-02-26 18:30:00.000000+0000 |  {'chess', 'drawing'} |                 null |            72.5 |      rahul
+      4 | 2012-05-10 18:30:00.000000+0000 |                  null |                 null |            73.4 | Ian string
+      3 | 2014-04-11 18:30:00.000000+0000 |                  null | ['hindi', 'english'] |            81.7 |    stephan
+
+(4 rows)
+cqlsh:students1> select rollno,hobbies,language,lastexampercent from student_info limit 2;
+
+ rollno | hobbies               | language | lastexampercent
+--------+-----------------------+----------+-----------------
+      1 | {'chess', 'swimming'} |     null |            69.9
+      2 |  {'chess', 'drawing'} |     null |            72.5
+
+(2 rows)
+cqlsh:students1> update student_info set studname='david' where rollno=2;
+cqlsh:students1> select * from student_info where rollno=2;
+
+ rollno | dateofjoining                   | hobbies              | language | lastexampercent | studname
+--------+---------------------------------+----------------------+----------+-----------------+----------
+      2 | 2013-02-26 18:30:00.000000+0000 | {'chess', 'drawing'} |     null |            72.5 |    david
+
+(1 rows)
+cqlsh:students1> update student_info set rollno=6  where rollno=3;
+InvalidRequest: Error from server: code=2200 [Invalid query] message="PRIMARY KEY part rollno found in SET part"
+cqlsh:students1> delete lastexampercent from student_info where rollno=2;
+cqlsh:students1> select * from student_info where rollno=2;
+
+ rollno | dateofjoining                   | hobbies              | language | lastexampercent | studname
+--------+---------------------------------+----------------------+----------+-----------------+----------
+      2 | 2013-02-26 18:30:00.000000+0000 | {'chess', 'drawing'} |     null |            null |    david
+
+(1 rows)
+cqlsh:students1> delete from student_info where rollno=2;
+cqlsh:students1> slect * from student_info;
+SyntaxException: line 1:0 no viable alternative at input 'slect' ([slect]...)
+cqlsh:students1> select * from student_info;
+
+ rollno | dateofjoining                   | hobbies               | language             | lastexampercent | studname
+--------+---------------------------------+-----------------------+----------------------+-----------------+------------
+      1 | 2012-03-28 18:30:00.000000+0000 | {'chess', 'swimming'} |                 null |            69.9 |    Michael
+      4 | 2012-05-10 18:30:00.000000+0000 |                  null |                 null |            73.4 | Ian string
+      3 | 2014-04-11 18:30:00.000000+0000 |                  null | ['hindi', 'english'] |            81.7 |    stephan
+
+(3 rows)
+cqlsh:students1> 
+cqlsh:students1> 
+
+
