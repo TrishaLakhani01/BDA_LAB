@@ -1,0 +1,172 @@
+$ cqlsh
+Connected to Cassandra Cluster at 127.0.0.1:9042
+[cqlsh 6.0.0 | Cassandra 4.0.0 | CQL spec 3.4.5 | Native protocol v5]
+Use HELP for help.
+cqlsh> 
+cqlsh> 
+cqlsh> create keyspace University with replication={'class':'SimpleStrategy','replication_factor':1};
+cqlsh> user University;
+SyntaxException: line 1:0 no viable alternative at input 'user' ([user]...)
+cqlsh> use University;
+cqlsh:university> create table Student(RollNo int, Name text, dept text, primary key(RollNo));
+cqlsh:university> alter table Student add Semester int;
+cqlsh:university> describe table Student;
+
+CREATE TABLE university.student (
+    rollno int PRIMARY KEY,
+    dept text,
+    name text,
+    semester int
+) WITH additional_write_policy = '99p'
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND cdc = false
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND default_time_to_live = 0
+    AND extensions = {}
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair = 'BLOCKING'
+    AND speculative_retry = '99p';
+cqlsh:university> insert into Student(RollNo, Name, dept, Semester) values (2, 'Michael','CS',2);
+cqlsh:university> update Student set name='Hayden' where rollno=2;
+cqlsh:university> select * from Student;
+
+ rollno | dept | name   | semester
+--------+------+--------+----------
+      2 |   CS | Hayden |        2
+
+(1 rows)
+cqlsh:university> begin batch
+              ... insert into Student(RollNo, Name, dept, Semester) values (1, 'Michael','CS',2);
+              ... insert into Student(RollNo, Name, dept, Semester) values (18, 'Brooke','IS',4);
+              ... insert into Student(RollNo, Name, dept, Semester) values (27, 'Nisha','EE',4);
+              ... insert into Student(RollNo, Name, dept, Semester) values (5, 'Akash','CS',4);
+              ... apply batch;
+cqlsh:university> select * from Student; rollno | dept | name    | semester
+--------+------+---------+----------
+      5 |   CS |   Akash |        4
+      1 |   CS | Michael |        2
+      2 |   CS |  Hayden |        2
+     18 |   IS |  Brooke |        4
+     27 |   EE |   Nisha |        4
+
+(5 rows)
+cqlsh:university> delete from Student where RollNo=1;cqlsh:university> select * from Student;
+ rollno | dept | name   | semester
+--------+------+--------+----------
+      5 |   CS |  Akash |        4
+      2 |   CS | Hayden |        2
+     18 |   IS | Brooke |        4
+     27 |   EE |  Nisha |        4
+
+(4 rows)
+cqlsh:university> update Student set Semester=2 where rollno=27;cqlsh:university> select * from Student;
+ rollno | dept | name   | semester
+--------+------+--------+----------
+      5 |   CS |  Akash |        4
+      2 |   CS | Hayden |        2
+     18 |   IS | Brooke |        4
+     27 |   EE |  Nisha |        2
+
+(4 rows)
+cqlsh:university> create index DeptIndex on Student(dept);
+cqlsh:university> select * from Student where dept='CS';
+
+ rollno | dept | name   | semester
+--------+------+--------+----------
+      5 |   CS |  Akash |        4
+      2 |   CS | Hayden |        2
+
+(2 rows)
+cqlsh:university> drop index IF EXISTS DeptIndex;
+cqlsh:university> select * from Student where dept='IS';
+InvalidRequest: Error from server: code=2200 [Invalid query] message="Cannot execute this query as it might involve data filtering and thus may have unpredictable performance. If you want to execute this query despite the performance unpredictability, use ALLOW FILTERING"
+cqlsh:university> insert into Student(RollNo, Name, dept, Semester) values (3,'Cara','CS',6) using ttl 100;
+cqlsh:university> select * from Student;
+
+ rollno | dept | name   | semester
+--------+------+--------+----------
+      5 |   CS |  Akash |        4
+      2 |   CS | Hayden |        2
+     18 |   IS | Brooke |        4
+     27 |   EE |  Nisha |        2
+      3 |   CS |   Cara |        6
+
+(5 rows)
+cqlsh:university> select ttl(Name) from Student where rollno=3;
+
+ ttl(name)
+-----------
+         6
+
+(1 rows)
+cqlsh:university> select ttl(Name) from Student where rollno=3;
+
+ ttl(name)
+-----------
+
+(0 rows)
+cqlsh:university> select * from Student;
+
+ rollno | dept | name   | semester
+--------+------+--------+----------
+      5 |   CS |  Akash |        4
+      2 |   CS | Hayden |        2
+     18 |   IS | Brooke |        4
+     27 |   EE |  Nisha |        2
+
+(4 rows)
+cqlsh:university> alter table Student add coursenames list<text>;
+cqlsh:university> insert into Student(RollNo, Name, dept, Semester,coursenames) values (1,'Hamilton','CS',6,['Data Science']);
+cqlsh:university> select * from Student;
+
+ rollno | coursenames      | dept | name     | semester
+--------+------------------+------+----------+----------
+      5 |             null |   CS |    Akash |        4
+      1 | ['Data Science'] |   CS | Hamilton |        6
+      2 |             null |   CS |   Hayden |        2
+     18 |             null |   IS |   Brooke |        4
+     27 |             null |   EE |    Nisha |        2
+
+(5 rows)
+cqlsh:university> alter table Student add prerequisite map<text,text>;
+cqlsh:university> update Student set prerequisite = prerequisite + {'Data Science':'DBMS','Neural Networks':'AI'} where rollno=6;
+cqlsh:university> select * from Student;
+
+ rollno | coursenames      | dept | name     | prerequisite                                      | semester
+--------+------------------+------+----------+---------------------------------------------------+----------
+      5 |             null |   CS |    Akash |                                              null |        4
+      1 | ['Data Science'] |   CS | Hamilton |                                              null |        6
+      2 |             null |   CS |   Hayden |                                              null |        2
+     18 |             null |   IS |   Brooke |                                              null |        4
+     27 |             null |   EE |    Nisha |                                              null |        2
+      6 |             null | null |     null | {'Data Science': 'DBMS', 'Neural Networks': 'AI'} |     null
+
+(6 rows)
+cqlsh:university> update Student set Name='Hari', dept='IS', semester=8 where rollno=6;
+cqlsh:university> select * from Student;
+
+ rollno | coursenames      | dept | name     | prerequisite                                      | semester
+--------+------------------+------+----------+---------------------------------------------------+----------
+      5 |             null |   CS |    Akash |                                              null |        4
+      1 | ['Data Science'] |   CS | Hamilton |                                              null |        6
+      2 |             null |   CS |   Hayden |                                              null |        2
+     18 |             null |   IS |   Brooke |                                              null |        4
+     27 |             null |   EE |    Nisha |                                              null |        2
+      6 |             null |   IS |     Hari | {'Data Science': 'DBMS', 'Neural Networks': 'AI'} |        8
+
+(6 rows)
+cqlsh:university> truncate Student;
+cqlsh:university> select * from Student;
+
+ rollno | coursenames | dept | name | prerequisite | semester
+--------+-------------+------+------+--------------+----------
+
+(0 rows)
+cqlsh:university> drop table Student;
